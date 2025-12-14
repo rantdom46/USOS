@@ -84,8 +84,10 @@ client.once('ready', async () => {
   ====================== */
   try {
     const announcementCommand = require('./commands/announcement');
-    announcementCommand.execute(client); // starts random interval announcements
-    console.log('📢 Announcement system initialized');
+    if (announcementCommand.startLoop) {
+      announcementCommand.startLoop(client); // starts random interval announcements
+      console.log('📢 Announcement system initialized');
+    }
   } catch (err) {
     console.error('❌ Failed to start announcement system:', err);
   }
@@ -101,7 +103,7 @@ client.on('interactionCreate', async interaction => {
   if (!command) return;
 
   try {
-    await command.execute(interaction);
+    await command.execute(interaction, client); // pass client as second argument if needed
   } catch (err) {
     console.error(err);
 
