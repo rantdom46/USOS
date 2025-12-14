@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { generateSquadName } = require('./namehelper'); // import squad generator
+const { generateSquadName } = require('../namehelper');
 
 // === CONFIG ===
 const ANNOUNCEMENTS_FILE = path.join(__dirname, '..', 'announcements.json'); 
