@@ -1,55 +1,118 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, Collection, REST, Routes } = require('discord.js');
+
 const fs = require('fs');
+const path = require('path');
+const express = require('express');
+const {
+  Client,
+  Collection,
+  GatewayIntentBits,
+  REST,
+  Routes
+} = require('discord.js');
 
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+/* =====================
+   EXPRESS (Render keep-alive)
+===================== */
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.get('/', (_, res) => res.send('USOS bot alive'));
+app.listen(PORT, () =>
+  console.log(`🌐 Webserver running on port ${PORT}`)
+);
+
+/* =====================
+   DISCORD CLIENT
+===================== */
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds]
+});
+
 client.commands = new Collection();
-
-// Load command files
-const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
 const commands = [];
-for (const file of commandFiles) {
+
+/* =====================
+   LOAD COMMANDS
+===================== */
+const commandsPath = path.join(__dirname, 'commands');
+
+if (fs.existsSync(commandsPath)) {
+  const commandFiles = fs
+    .readdirSync(commandsPath)
+    .filter(file => file.endsWith('.js'));
+
+  for (const file of commandFiles) {
     const command = require(`./commands/${file}`);
-    client.commands.set(command.name, command);
-    // Prepare for registration
-    commands.push({
-        name: command.name,
-        description: command.description,
-        guildOnly: command.guildOnly || false,
-    });
+
+    if (!command.data || !command.data.name) {
+      console.warn(`⚠️ Invalid command file: ${file}`);
+      continue;
+    }
+
+    client.commands.set(command.data.name, command);
+    commands.push(command.data.toJSON());
+  }
 }
 
-// Register slash commands for guild
+/* =====================
+   SLASH COMMAND REGISTER
+===================== */
+const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+
 client.once('ready', async () => {
-    console.log(`Logged in as ${client.user.tag}`);
+  console.log(`✅ Logged in as ${client.user.tag}`);
+  console.log('🔁 Registering GUILD slash commands...');
 
-    const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+  try {
+    await rest.put(
+      Routes.applicationGuildCommands(
+        process.env.APP_ID,
+        process.env.GUILD_ID
+      ),
+      { body: commands }
+    );
 
-    try {
-        console.log('Registering slash commands...');
-        await rest.put(
-            Routes.applicationGuildCommands(client.user.id, process.env.GUILD_ID),
-            { body: commands }
-        );
-        console.log('Slash commands registered!');
-    } catch (error) {
-        console.error(error);
-    }
+    console.log('✅ Guild slash commands registered');
+  } catch (err) {
+    console.error('❌ Slash command registration failed:', err);
+  }
 });
 
-// Handle interactions
+/* =====================
+   INTERACTION HANDLER
+===================== */
 client.on('interactionCreate', async interaction => {
-    if (!interaction.isChatInputCommand()) return;
+  if (!interaction.isChatInputCommand()) return;
 
-    const command = client.commands.get(interaction.commandName);
-    if (!command) return;
+  const command = client.commands.get(interaction.commandName);
+  if (!command) return;
 
-    try {
-        command.execute(interaction);
-    } catch (error) {
-        console.error(error);
-        await interaction.reply({ content: 'There was an error executing that command!', ephemeral: true });
+  try {
+    await command.execute(interaction);
+  } catch (err) {
+    console.error(err);
+
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp({
+        content: '❌ Error executing command.',
+        ephemeral: true
+      });
+    } else {
+      await interaction.reply({
+        content: '❌ Error executing command.',
+        ephemeral: true
+      });
     }
+  }
 });
 
-client.login(process.env.DISCORD_TOKEN);
+/* =====================
+   LOGIN
+===================== */
+client.login(process.env.DISCORD_TOKEN)
+  .then(() => console.log('🤖 Discord login success'))
+  .catch(err => {
+    console.error('❌ Discord login failed:', err);
+    process.exit(1);
+  });
