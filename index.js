@@ -77,6 +77,18 @@ client.once('ready', async () => {
   } catch (err) {
     console.error('❌ Slash command registration failed:', err);
   }
+
+  /* =====================
+     ANNOUNCEMENT SYSTEM HOOK
+     (Logic remains in announcement.js)
+  ====================== */
+  try {
+    const announcementCommand = require('./commands/announcement');
+    announcementCommand.execute(client); // starts random interval announcements
+    console.log('📢 Announcement system initialized');
+  } catch (err) {
+    console.error('❌ Failed to start announcement system:', err);
+  }
 });
 
 /* =====================
